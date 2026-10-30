@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     int sockfd, n;
     char recvline[MAXLINE + 1];
     struct sockaddr_in servaddr;
-    if (argc != 2) {
+    if (argc != 3) {
         perror("usage: daytimetcpcli <IPaddress>");
         exit(1);
     }
@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
 
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(13);
+    servaddr.sin_port = htons(atoi(argv[2]));
     if (inet_pton(AF_INET, argv[1], &servaddr.sin_addr) <= 0) {
         fprintf(stderr, "Inet_pton error\n");
         exit(1);

@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 
+// NOTE:
+// struct epoll_event
+// epoll_create, epoll_wait, epoll_ctl
 
 void *client_thread(void *arg) {
 
