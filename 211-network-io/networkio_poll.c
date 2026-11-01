@@ -7,27 +7,6 @@
 #include <unistd.h>
 #include <poll.h>
 
-void *client_thread(void *arg) {
-
-    int clientfd = *(int *)arg;  // NOTE: fd is int, increment, starting from 3. 0 is stdin, 1 is stdout, 2 is stderr
-
-    while (1) {
-
-        char buffer[1024] = {0};
-        int  count        = recv(clientfd, buffer, 1024, 0);
-        printf("Recv %s\n", buffer);
-
-        if (count == 0) {  // recv return 0 means discconect
-            printf("client disconnect: %d\n", clientfd);
-            close(clientfd);
-            break;
-        }
-
-        count = send(clientfd, buffer, 1024, 0);
-        printf("SEND: %d\n", count);
-    }
-}
-
 int main(void) {
     int                sockfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in servaddr;
@@ -46,7 +25,7 @@ int main(void) {
 
     struct pollfd fds[1024] = {0};
     fds[sockfd].fd = sockfd;
-    fds[sockfd].events = POLLIN;
+    fds[sockfd].events = POLLIN;  //NOTE: 表示我们关心 POLLIN可读
     int maxfd = sockfd;
     while (1) {
         int nready = poll(fds, maxfd + 1, -1);  // poll 把 fd copy 到 内核去，然后看fd是不是ready
@@ -60,6 +39,7 @@ int main(void) {
 
         int i = 0;
         for (i = sockfd + 1; i <= maxfd; i++) {
+            // NOTE: 这里是逻辑&， POLLIN 的值时0x0001
             if (fds[i].revents & POLLIN) {
                 char buffer[1024] = {};
                 int count = recv(i, buffer, 1024, 0);

@@ -6,26 +6,26 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-void *client_thread(void *arg) {
-
-    int clientfd = *(int *)arg;  // NOTE: fd is int, increment, starting from 3. 0 is stdin, 1 is stdout, 2 is stderr
-
-    while (1) {
-
-        char buffer[1024] = {0};
-        int  count        = recv(clientfd, buffer, 1024, 0);
-        printf("Recv %s\n", buffer);
-
-        if (count == 0) {  // recv return 0 means discconect
-            printf("client disconnect: %d\n", clientfd);
-            close(clientfd);
-            break;
-        }
-
-        count = send(clientfd, buffer, 1024, 0);
-        printf("SEND: %d\n", count);
-    }
-}
+// void *client_thread(void *arg) {
+//
+//     int clientfd = *(int *)arg;  // NOTE: fd is int, increment, starting from 3. 0 is stdin, 1 is stdout, 2 is stderr
+//
+//     while (1) {
+//
+//         char buffer[1024] = {0};
+//         int  count        = recv(clientfd, buffer, 1024, 0);
+//         printf("Recv %s\n", buffer);
+//
+//         if (count == 0) {  // recv return 0 means discconect
+//             printf("client disconnect: %d\n", clientfd);
+//             close(clientfd);
+//             break;
+//         }
+//
+//         count = send(clientfd, buffer, 1024, 0);
+//         printf("SEND: %d\n", count);
+//     }
+// }
 
 int main(void) {
     int                sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -43,7 +43,7 @@ int main(void) {
     struct sockaddr_in clientaddr;
     socklen_t          len = sizeof(clientaddr);
 
-    fd_set rfds;  // NOTE: 指fd的set的大小，集合大小？ 这个集合是什么东西
+    fd_set rfds;  // NOTE: 指fd的set的大小，集合大小？ 这个集合是什么东西 它是一个长为1024的比特位数组
     fd_set rset;
     FD_ZERO(&rfds); // clean the rfds
     FD_SET(sockfd, &rfds); // NOTE: 把这个fd sets 设置（set） 到 sockfd上
@@ -51,17 +51,27 @@ int main(void) {
     int maxfd = sockfd; // define the maximum value of the fd
 
     while (1) {
+        // NOTE: 这里为什么要复制？ 
+        // 因为 select 每次都会更改 rset这个集合。 rset会被更改成 只有现在可读的fd
+        // 如果不重置 rset, 会发生下面的情况
+        // 初始：rfds = {3}
+        // 第 1 轮：select(&rfds) 返回时 3 可读 → rfds = {3}，accept 得到 4 → rfds = {3, 4}
+        // 第 2 轮：客户端 4 发来数据，select(&rfds) 返回 → rfds 被改写成 {4}，3 被清掉了！
+        // 第 3 轮：select 只监视 4，新客户端连接到 3 上，永远不会被 accept
         rset = rfds;
-        // param 1, the maximum loop value, if i have maxfx define as 9, totoal loop is 0-9=10 so maxfd + 1
+        // param 1, the number of socket to check, if i have maxfx define as 9, totoal loop is 0-9=10 so maxfd + 1
         // param 2, the readfd, those fd are the fds that select will keep close look at to see if they can be read
         // param 3, the writefd, pay attention of fds that we want to write
+        // param 4, exceptedfd 可错集合
+        // param 5, timeout
         // nready return how many read and write available fd from 2 and 3
-        int nready = select(maxfd + 1, &rset, NULL, NULL, NULL); // NOTE: 最后一个参数，如果没有client，就会一直等，然后阻塞
+        // NOTE: 每次这个 select都要百rsetcopy到内核空间
+        int nready = select(maxfd + 1, &rset, NULL, NULL, NULL); // NOTE: 最后一个参数，如果没有client，timeout, 设置0，就会一直等，然后阻塞
 
-        if(FD_ISSET(sockfd, &rset)) {  // NOTE: 这个可读的rset是否在listen sock中被设置
+        if(FD_ISSET(sockfd, &rset)) {  // NOTE: 这个可读的rset是否在listen sock中就绪, 对于 这个socket，它是监听socket，有新的链接请求就是有新数据
             int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
             printf("accept finished: %d\n", clientfd);
-            FD_SET(clientfd, &rfds);
+            FD_SET(clientfd, &rfds); // NOTE: 把clientfd绑定, 并且更新 rfds
 
             if (clientfd > maxfd) maxfd = clientfd; 
             // NOTE: 这里需要加判断，是因为 clientfd是会被回收。如果一个新的connection 用的是老的clientfd，maxfd维持不变的。

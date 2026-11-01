@@ -28,11 +28,17 @@ struct timeval begin;
 struct conn conn_list[CONNECTION_SIZE] = {0};
 
 int set_event(int fd, int event, int flag) {
+    // if 1, add
     if (flag) {
         struct epoll_event ev;
         ev.events  = event;
         ev.data.fd = fd;
         epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev);
+    } else {
+        struct epoll_event ev;
+        ev.events = event;
+        ev.data.fd = fd;
+        epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &ev);
     }
 }
 
@@ -76,6 +82,8 @@ int accept_cb(int fd) {
 
         printf("accept finished: %d, time_used: %d\n", clientfd, time_used);
     }
+
+    return 0;
 }
 
 int recv_cb(int fd) {
@@ -203,13 +211,6 @@ int main() {
             for (i = 0; i < nready; i++) {
                 int connfd = events[i].data.fd;
 
-#if 0
-                if (events[i].events & EPOLLIN) {
-                    conn_list[connfd].r_action.recv_callback(connfd);
-                } else if (events[i].events & POLLOUT) {
-                    conn_list[connfd].send_callback(connfd);
-                }
-#else
                 if (events[i].events & EPOLLIN) {
                     conn_list[connfd].r_action.recv_callback(connfd);
                 }
@@ -217,7 +218,6 @@ int main() {
                 if (events[i].events & EPOLLOUT) {
                     conn_list[connfd].send_callback(connfd);
                 }
-#endif
             }
         }
     }

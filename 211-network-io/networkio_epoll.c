@@ -72,16 +72,16 @@ int main(void) {
             } else if (events[i].events & EPOLLIN) {
                 char buffer[1024] = {0};
 
-                int count = recv(i, buffer, 1024, 0);
+                int count = recv(connfd, buffer, 1024, 0);
                 if (count == 0) {
                     printf("client disconnect: %d\n", connfd);
-                    close(i);
+                    close(connfd);
                     epoll_ctl(epfd, EPOLL_CTL_DEL, connfd, &ev);
                     continue;
                 }
 
                 printf("RECV: %s\n", buffer);
-                count = send(i, buffer, count, 0);
+                count = send(connfd, buffer, count, 0);
                 printf("SEND: %d\n", count);
 
             }
