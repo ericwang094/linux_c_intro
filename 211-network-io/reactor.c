@@ -11,7 +11,7 @@
 
 #include "server.h"
 
-#define CONNECTION_SIZE 11048676 // 1024 * 1024
+#define CONNECTION_SIZE 1048576 // 1024 * 1024
 
 #define MAX_PORTS 20
 
@@ -91,15 +91,15 @@ int recv_cb(int fd) {
     int count = recv(fd, conn_list[fd].rbuffer, BUFFER_LENGTH, 0);
     if (count == 0) {
         printf("client disconnect: %d\n", fd);
+        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL); // unfinished
         close(fd);
 
-        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL); // unfinished
 
         return 0;
     } else if (count < 0) {
         printf("count: %d, errno: %d, %s\n", count, errno, strerror(errno));
-        close(fd);
         epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+        close(fd);
 
         return 0;
     }
@@ -130,7 +130,7 @@ int recv_cb(int fd) {
 
 int send_cb(int fd) {
 #if 1
-    http_response(&conn_list[fd]);
+    // http_response(&conn_list[fd]);
 
 #else
     ws_response(&conn_list[fd]);
@@ -138,20 +138,20 @@ int send_cb(int fd) {
 
     int count = 0;
 
-#if 1
-    if (conn_list[fd].status == 1) {
-        printf("SEND: %s\n", conn_list[fd].wbuffer);
-        count = send(fd, conn_list[fd].wbuffer, conn_list[fd].wlength, 0);
-        set_event(fd, EPOLLOUT, 0);
-    } else if (conn_list[fd].status == 2) {
-        set_event(fd, EPOLLOUT, 0);
-    } else if (conn_list[fd].status == 0) {
-        if (conn_list[fd].wlength != 0) {
-            count = send(fd, conn_list[fd].wbuffer, conn_list[fd].wlength, 0);
-        }
-
-        set_event(fd, EPOLLIN, 0);
-    }
+#if 0
+    // if (conn_list[fd].status == 1) {
+    //     printf("SEND: %s\n", conn_list[fd].wbuffer);
+    //     count = send(fd, conn_list[fd].wbuffer, conn_list[fd].wlength, 0);
+    //     set_event(fd, EPOLLOUT, 0);
+    // } else if (conn_list[fd].status == 2) {
+    //     set_event(fd, EPOLLOUT, 0);
+    // } else if (conn_list[fd].status == 0) {
+    //     if (conn_list[fd].wlength != 0) {
+    //         count = send(fd, conn_list[fd].wbuffer, conn_list[fd].wlength, 0);
+    //     }
+    //
+    //     set_event(fd, EPOLLIN, 0);
+    // }
 #else
 
     if (conn_list[fd].wlength != 0) {
@@ -160,6 +160,7 @@ int send_cb(int fd) {
 
     set_event(fd, EPOLLIN, 0);
 #endif
+
     return count;
 }
 
@@ -181,6 +182,9 @@ int init_server(unsigned short port) {
 }
 
 int main() {
+    // init_server()
+    // sockfd, accept_cb
+    // clientfd -> recv_cb, send_cb
     unsigned short port = 2000;
 
     epfd = epoll_create(1);
@@ -188,7 +192,7 @@ int main() {
     int i = 0;
 
     for (i = 0; i < MAX_PORTS; i++) {
-        int sockfd = init_server(port + 1);
+        int sockfd = init_server(port + i);
 
         conn_list[sockfd].fd                     = sockfd;
         conn_list[sockfd].r_action.recv_callback = accept_cb;
@@ -205,19 +209,14 @@ int main() {
 
         int i = 0;
         for (i = 0; i < nready; i++) {
-            int connfd = epoll_wait(epfd, events, 1024, -1);
+            int connfd = events[i].data.fd;
 
-            int i = 0;
-            for (i = 0; i < nready; i++) {
-                int connfd = events[i].data.fd;
+            if (events[i].events & EPOLLIN) {
+                conn_list[connfd].r_action.recv_callback(connfd);
+            }
 
-                if (events[i].events & EPOLLIN) {
-                    conn_list[connfd].r_action.recv_callback(connfd);
-                }
-
-                if (events[i].events & EPOLLOUT) {
-                    conn_list[connfd].send_callback(connfd);
-                }
+            if (events[i].events & EPOLLOUT) {
+                conn_list[connfd].send_callback(connfd);
             }
         }
     }
