@@ -18,7 +18,7 @@ struct conn {
 
     union {
         RCALLBACK recv_callback;
-        RCALLBACK accpet_callback;
+        RCALLBACK accept_callback;
     } r_action;
 
     int status;

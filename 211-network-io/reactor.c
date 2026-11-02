@@ -195,7 +195,7 @@ int main() {
         int sockfd = init_server(port + i);
 
         conn_list[sockfd].fd                     = sockfd;
-        conn_list[sockfd].r_action.recv_callback = accept_cb;
+        conn_list[sockfd].r_action.accept_callback = accept_cb;
 
         set_event(sockfd, EPOLLIN, 1);
     }
@@ -203,6 +203,8 @@ int main() {
     gettimeofday(&begin, NULL);
 
     while (1) {
+        // 这个数组的大小是指 从内核的 就绪链表中取回来的事件。如果就绪链表中
+        // 的事件大于1024，那么我们就先取1024，之后的下一批回来
         struct epoll_event events[1024] = {0};
 
         int nready = epoll_wait(epfd, events, 1024, -1);
@@ -210,6 +212,12 @@ int main() {
         int i = 0;
         for (i = 0; i < nready; i++) {
             int connfd = events[i].data.fd;
+
+
+            // events[i].events 是 epoll_event, 是一个32位整数
+            // 32 位整数就是 8位16进制
+            // EPOLLIN 0x0000001
+            // EPOLLOUT  0x004
 
             if (events[i].events & EPOLLIN) {
                 conn_list[connfd].r_action.recv_callback(connfd);
